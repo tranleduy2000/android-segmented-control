@@ -10,12 +10,12 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.graphics.drawable.TransitionDrawable;
-import android.os.Build;
 import android.util.AttributeSet;
 import android.util.StateSet;
-import android.util.TypedValue;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -24,13 +24,15 @@ import java.util.HashMap;
 
 public class SegmentedGroup extends RadioGroup {
 
-    private int mMarginDp;
-    private Resources resources;
-    private int mTintColor;
-    private int mUnCheckedTintColor;
-    private int mCheckedTextColor = Color.WHITE;
-    private LayoutSelector mLayoutSelector;
-    private Float mCornerRadius;
+    private int marginDp;
+    private int cornerRadius;
+    private final Resources resources;
+    private ColorStateList primaryColor;
+    private ColorStateList secondaryColor;
+    private ColorStateList checkedTextColor = ColorStateList.valueOf(Color.WHITE);
+
+    private final LayoutSelector mLayoutSelector;
+
     private OnCheckedChangeListener mCheckedChangeListener;
     private HashMap<Integer, TransitionDrawable> mDrawableMap;
     private int mLastCheckId;
@@ -38,22 +40,20 @@ public class SegmentedGroup extends RadioGroup {
     public SegmentedGroup(Context context) {
         super(context);
         resources = getResources();
-        mTintColor = resources.getColor(R.color.radio_button_selected_color);
-        mUnCheckedTintColor = resources.getColor(R.color.radio_button_unselected_color);
-        mMarginDp = (int) getResources().getDimension(R.dimen.radio_button_stroke_border);
-        mCornerRadius = getResources().getDimension(R.dimen.radio_button_conner_radius);
-        mLayoutSelector = new LayoutSelector(mCornerRadius);
+        primaryColor = ColorStateList.valueOf(0xff33b5e5);
+        secondaryColor = ColorStateList.valueOf(Color.TRANSPARENT);
+        marginDp = (int) getResources().getDimension(R.dimen.radio_button_stroke_border);
+        mLayoutSelector = new LayoutSelector();
     }
 
     public SegmentedGroup(Context context, AttributeSet attrs) {
         super(context, attrs);
         resources = getResources();
-        mTintColor = resources.getColor(R.color.radio_button_selected_color);
-        mUnCheckedTintColor = resources.getColor(R.color.radio_button_unselected_color);
-        mMarginDp = (int) getResources().getDimension(R.dimen.radio_button_stroke_border);
-        mCornerRadius = getResources().getDimension(R.dimen.radio_button_conner_radius);
+        primaryColor = resources.getColorStateList(R.color.radio_button_selected_color);
+        secondaryColor = resources.getColorStateList(R.color.radio_button_unselected_color);
+        marginDp = (int) getResources().getDimension(R.dimen.radio_button_stroke_border);
         initAttrs(attrs);
-        mLayoutSelector = new LayoutSelector(mCornerRadius);
+        mLayoutSelector = new LayoutSelector();
     }
 
     /* Reads the attributes from the layout */
@@ -64,25 +64,35 @@ public class SegmentedGroup extends RadioGroup {
                 0, 0);
 
         try {
-            mMarginDp = (int) typedArray.getDimension(
+            marginDp = (int) typedArray.getDimension(
                     R.styleable.SegmentedGroup_sc_border_width,
                     getResources().getDimension(R.dimen.radio_button_stroke_border));
 
-            mCornerRadius = typedArray.getDimension(
-                    R.styleable.SegmentedGroup_sc_corner_radius,
-                    getResources().getDimension(R.dimen.radio_button_conner_radius));
+            primaryColor = typedArray.getColorStateList(
+                    R.styleable.SegmentedGroup_sc_tint_color);
+            if (primaryColor == null) {
+                primaryColor = getResources().getColorStateList(R.color.radio_button_selected_color);
+            }
 
-            mTintColor = typedArray.getColor(
-                    R.styleable.SegmentedGroup_sc_tint_color,
-                    getResources().getColor(R.color.radio_button_selected_color));
 
-            mCheckedTextColor = typedArray.getColor(
-                    R.styleable.SegmentedGroup_sc_checked_text_color,
-                    getResources().getColor(android.R.color.white));
+            secondaryColor = typedArray.getColorStateList(
+                    R.styleable.SegmentedGroup_sc_unchecked_tint_color);
+            if (secondaryColor == null) {
+                secondaryColor = getResources().getColorStateList(R.color.radio_button_unselected_color);
+            }
 
-            mUnCheckedTintColor = typedArray.getColor(
-                    R.styleable.SegmentedGroup_sc_unchecked_tint_color,
-                    getResources().getColor(R.color.radio_button_unselected_color));
+            checkedTextColor = typedArray.getColorStateList(
+                    R.styleable.SegmentedGroup_checked_text_color);
+
+            // Default checked text color is unchecked background color
+            if (checkedTextColor == null) {
+                checkedTextColor = secondaryColor;
+            }
+
+            if (typedArray.hasValue(R.styleable.SegmentedGroup_sc_corner_radius)) {
+                cornerRadius = typedArray.getDimensionPixelSize(R.styleable.SegmentedGroup_sc_corner_radius, 0);
+            }
+
         } finally {
             typedArray.recycle();
         }
@@ -95,19 +105,32 @@ public class SegmentedGroup extends RadioGroup {
         updateBackground();
     }
 
-    public void setTintColor(int tintColor) {
-        mTintColor = tintColor;
+    @Override
+    public void addView(View child, int index, ViewGroup.LayoutParams params) {
+        super.addView(child, index, params);
+        updateBackground();
+    }
+
+    @Override
+    public void setOnCheckedChangeListener(OnCheckedChangeListener listener) {
+        mCheckedChangeListener = listener;
+    }
+
+    @SuppressWarnings("unused")
+    public void setPrimaryColor(int primaryColor) {
+        this.primaryColor = ColorStateList.valueOf(primaryColor);
         updateBackground();
     }
 
     public void setTintColor(int tintColor, int checkedTextColor) {
-        mTintColor = tintColor;
-        mCheckedTextColor = checkedTextColor;
+        this.primaryColor = ColorStateList.valueOf(tintColor);
+        this.checkedTextColor = ColorStateList.valueOf(checkedTextColor);
         updateBackground();
     }
 
+    @SuppressWarnings("unused")
     public void setUnCheckedTintColor(int unCheckedTintColor, int unCheckedTextColor) {
-        mUnCheckedTintColor = unCheckedTintColor;
+        this.secondaryColor = ColorStateList.valueOf(unCheckedTintColor);
         updateBackground();
     }
 
@@ -116,7 +139,7 @@ public class SegmentedGroup extends RadioGroup {
         int count = super.getChildCount();
         for (int i = 0; i < count; i++) {
             View child = getChildAt(i);
-            updateBackground(child);
+            updateBackground(child, i, count);
 
             // If this is the last view, don't set LayoutParams
             if (i == count - 1) break;
@@ -125,70 +148,73 @@ public class SegmentedGroup extends RadioGroup {
             LayoutParams params = new LayoutParams(initParams.width, initParams.height, initParams.weight);
             // Check orientation for proper margins
             if (getOrientation() == LinearLayout.HORIZONTAL) {
-                params.setMargins(0, 0, -mMarginDp, 0);
+                params.setMargins(0, 0, -marginDp, 0);
             } else {
-                params.setMargins(0, 0, 0, -mMarginDp);
+                params.setMargins(0, 0, 0, -marginDp);
             }
             child.setLayoutParams(params);
         }
     }
 
-    private void updateBackground(View view) {
+    private void updateBackground(View view, int index, int count) {
         int checked = mLayoutSelector.getSelected();
         int unchecked = mLayoutSelector.getUnselected();
         //Set text color
         ColorStateList colorStateList = new ColorStateList(new int[][]{
                 {-android.R.attr.state_checked},
                 {android.R.attr.state_checked}},
-                new int[]{mTintColor, mCheckedTextColor});
+                new int[]{primaryColor.getDefaultColor(), checkedTextColor.getDefaultColor()});
         ((Button) view).setTextColor(colorStateList);
 
         //Redraw with tint color
-        Drawable checkedDrawable = resources.getDrawable(checked).mutate();
-        Drawable uncheckedDrawable = resources.getDrawable(unchecked).mutate();
-        ((GradientDrawable) checkedDrawable).setColor(mTintColor);
-        ((GradientDrawable) checkedDrawable).setStroke(mMarginDp, mTintColor);
-        ((GradientDrawable) uncheckedDrawable).setStroke(mMarginDp, mTintColor);
-        ((GradientDrawable) uncheckedDrawable).setColor(mUnCheckedTintColor);
-        //Set proper radius
-        ((GradientDrawable) checkedDrawable).setCornerRadii(mLayoutSelector.getChildRadii(view));
-        ((GradientDrawable) uncheckedDrawable).setCornerRadii(mLayoutSelector.getChildRadii(view));
+        GradientDrawable checkedDrawable = (GradientDrawable) resources.getDrawable(checked).mutate();
+        GradientDrawable uncheckedDrawable = (GradientDrawable) resources.getDrawable(unchecked).mutate();
+        checkedDrawable.setColor(primaryColor.getDefaultColor());
+        checkedDrawable.setStroke(marginDp, primaryColor.getDefaultColor());
+        uncheckedDrawable.setStroke(marginDp, primaryColor.getDefaultColor());
+        uncheckedDrawable.setColor(secondaryColor.getDefaultColor());
+
+        setCornerRadiusChild(checkedDrawable, index, count);
+        setCornerRadiusChild(uncheckedDrawable, index, count);
 
         GradientDrawable maskDrawable = (GradientDrawable) resources.getDrawable(unchecked).mutate();
-        maskDrawable.setStroke(mMarginDp, mTintColor);
-        maskDrawable.setColor(mUnCheckedTintColor);
-        maskDrawable.setCornerRadii(mLayoutSelector.getChildRadii(view));
-        int maskColor = Color.argb(50, Color.red(mTintColor), Color.green(mTintColor), Color.blue(mTintColor));
+        maskDrawable.setStroke(marginDp, primaryColor.getDefaultColor());
+        maskDrawable.setColor(secondaryColor.getDefaultColor());
+        int maskColor = Color.argb(50, Color.red(primaryColor.getDefaultColor()), Color.green(primaryColor.getDefaultColor()), Color.blue(primaryColor.getDefaultColor()));
         maskDrawable.setColor(maskColor);
-        LayerDrawable pressedDrawable = new LayerDrawable(new Drawable[] {uncheckedDrawable, maskDrawable});
+        setCornerRadiusChild(maskDrawable, index, count);
+        LayerDrawable pressedDrawable = new LayerDrawable(new Drawable[]{uncheckedDrawable, maskDrawable});
 
         Drawable[] drawables = {uncheckedDrawable, checkedDrawable};
         TransitionDrawable transitionDrawable = new TransitionDrawable(drawables);
         if (((RadioButton) view).isChecked()) {
             transitionDrawable.reverseTransition(0);
+            transitionDrawable.jumpToCurrentState(); // disable animation
         }
 
         StateListDrawable stateListDrawable = new StateListDrawable();
-        stateListDrawable.addState(new int[] {-android.R.attr.state_checked, android.R.attr.state_pressed}, pressedDrawable);
+        stateListDrawable.addState(new int[]{-android.R.attr.state_checked, android.R.attr.state_pressed}, pressedDrawable);
         stateListDrawable.addState(StateSet.WILD_CARD, transitionDrawable);
 
         mDrawableMap.put(view.getId(), transitionDrawable);
 
         //Set button background
-        if (Build.VERSION.SDK_INT >= 16) {
-            view.setBackground(stateListDrawable);
-        } else {
-            view.setBackgroundDrawable(stateListDrawable);
-        }
+        view.setBackground(stateListDrawable);
 
         super.setOnCheckedChangeListener(new OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
                 TransitionDrawable current = mDrawableMap.get(checkedId);
-                current.reverseTransition(200);
+                if (current != null) {
+                    current.reverseTransition(0);
+                    current.jumpToCurrentState(); // disable animation
+                }
                 if (mLastCheckId != 0) {
                     TransitionDrawable last = mDrawableMap.get(mLastCheckId);
-                    if (last != null) last.reverseTransition(200);
+                    if (last != null) {
+                        last.reverseTransition(0);
+                        last.jumpToCurrentState(); // disable animation
+                    }
                 }
                 mLastCheckId = checkedId;
 
@@ -199,82 +225,59 @@ public class SegmentedGroup extends RadioGroup {
         });
     }
 
+    private void setCornerRadiusChild(GradientDrawable drawable, int index, int count) {
+        drawable.setCornerRadii(
+                new float[]{index == 0 ? cornerRadius : 0, index == 0 ? cornerRadius : 0, // top-left
+                        index == count - 1 ? cornerRadius : 0, index == count - 1 ? cornerRadius : 0,  // top-right
+                        index == count - 1 ? cornerRadius : 0, index == count - 1 ? cornerRadius : 0, // bottom-right
+                        index == 0 ? cornerRadius : 0, index == 0 ? cornerRadius : 0 // bottom-left
+                }
+        );
+
+    }
+
     @Override
     public void onViewRemoved(View child) {
         super.onViewRemoved(child);
         mDrawableMap.remove(child.getId());
     }
 
-    @Override
-    public void setOnCheckedChangeListener(OnCheckedChangeListener listener) {
-        mCheckedChangeListener = listener;
+    public void checkViewAtIndex(int index) {
+        if (getChildCount() > index && index >= 0) {
+            View child = getChildAt(index);
+            if (child instanceof CompoundButton) {
+                check(child.getId());
+            }
+        }
+    }
+
+    public int getSelectedIndex() {
+        int checkedRadioButtonId = getCheckedRadioButtonId();
+        for (int i = 0; i < getChildCount(); i++) {
+            if (getChildAt(i).getId() == checkedRadioButtonId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public void removeAllSegments() {
+        removeAllViews();
     }
 
     /*
-         * This class is used to provide the proper layout based on the view.
-         * Also provides the proper radius for corners.
-         * The layout is the same for each selected left/top middle or right/bottom button.
-         * float tables for setting the radius via Gradient.setCornerRadii are used instead
-         * of multiple xml drawables.
-         */
-    private class LayoutSelector {
+     * This class is used to provide the proper layout based on the view.
+     * Also provides the proper radius for corners.
+     * The layout is the same for each selected left/top middle or right/bottom button.
+     * float tables for setting the radius via Gradient.setCornerRadii are used instead
+     * of multiple xml drawables.
+     */
+    private static class LayoutSelector {
 
-        private int children;
-        private int child;
         private final int SELECTED_LAYOUT = R.drawable.radio_checked;
         private final int UNSELECTED_LAYOUT = R.drawable.radio_unchecked;
 
-        private float r;    //this is the radios read by attributes or xml dimens
-        private final float r1 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP
-                , 0.1f, getResources().getDisplayMetrics());    //0.1 dp to px
-        private final float[] rLeft;    // left radio button
-        private final float[] rRight;   // right radio button
-        private final float[] rMiddle;  // middle radio button
-        private final float[] rDefault; // default radio button
-        private final float[] rTop;     // top radio button
-        private final float[] rBot;     // bot radio button
-        private float[] radii;          // result radii float table
-
-        public LayoutSelector(float cornerRadius) {
-            children = -1; // Init this to force setChildRadii() to enter for the first time.
-            child = -1; // Init this to force setChildRadii() to enter for the first time
-            r = cornerRadius;
-            rLeft = new float[]{r, r, r1, r1, r1, r1, r, r};
-            rRight = new float[]{r1, r1, r, r, r, r, r1, r1};
-            rMiddle = new float[]{r1, r1, r1, r1, r1, r1, r1, r1};
-            rDefault = new float[]{r, r, r, r, r, r, r, r};
-            rTop = new float[]{r, r, r, r, r1, r1, r1, r1};
-            rBot = new float[]{r1, r1, r1, r1, r, r, r, r};
-        }
-
-        private int getChildren() {
-            return SegmentedGroup.this.getChildCount();
-        }
-
-        private int getChildIndex(View view) {
-            return SegmentedGroup.this.indexOfChild(view);
-        }
-
-        private void setChildRadii(int newChildren, int newChild) {
-
-            // If same values are passed, just return. No need to update anything
-            if (children == newChildren && child == newChild)
-                return;
-
-            // Set the new values
-            children = newChildren;
-            child = newChild;
-
-            // if there is only one child provide the default radio button
-            if (children == 1) {
-                radii = rDefault;
-            } else if (child == 0) { //left or top
-                radii = (getOrientation() == LinearLayout.HORIZONTAL) ? rLeft : rTop;
-            } else if (child == children - 1) {  //right or bottom
-                radii = (getOrientation() == LinearLayout.HORIZONTAL) ? rRight : rBot;
-            } else {  //middle
-                radii = rMiddle;
-            }
+        LayoutSelector() {
         }
 
         /* Returns the selected layout id based on view */
@@ -287,12 +290,5 @@ public class SegmentedGroup extends RadioGroup {
             return UNSELECTED_LAYOUT;
         }
 
-        /* Returns the radii float table based on view for Gradient.setRadii()*/
-        public float[] getChildRadii(View view) {
-            int newChildren = getChildren();
-            int newChild = getChildIndex(view);
-            setChildRadii(newChildren, newChild);
-            return radii;
-        }
     }
 }

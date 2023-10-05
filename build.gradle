@@ -3,29 +3,25 @@
 buildscript {
     repositories {
         mavenCentral()
-        maven {
-            url "https://oss.sonatype.org/content/repositories/snapshots"
-        }
+        google()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:1.5.0'
+        classpath 'com.android.tools.build:gradle:8.1.2'
     }
 }
 
-def isReleaseBuild() {
-    return version.contains("SNAPSHOT") == false
+ext {
+    compileSdkVersion = 34
+    buildToolsVersion = "34.0.0"
+    minSdkVersion = 21
+    targetSdkVersion = 34
 }
 
 allprojects {
-    version = VERSION_NAME
-    group = GROUP
-
     repositories {
+        google()
         mavenCentral()
-        maven {
-            url "https://oss.sonatype.org/content/repositories/snapshots"
-        }
+        maven { url "https://jitpack.io" }
+        maven { url 'https://maven.google.com/' }
     }
 }
-
-apply plugin: 'android-reporting'
